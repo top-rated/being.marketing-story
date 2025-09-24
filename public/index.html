@@ -8,8 +8,21 @@
   <style>
     body{max-width:900px;margin:2rem auto;font-family:system-ui,Arial,sans-serif}
     header{display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    .actions{display:flex;gap:1rem;align-items:center}
-    .muted{opacity:.7;font-size:.9rem}
+    .actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+    .muted{opacity:.75;font-size:.9rem}
+    .btn{display:inline-block;padding:.6rem 1rem;border:1px solid #ccc;border-radius:.5rem;text-decoration:none;cursor:pointer}
+    .btn-primary{background:#111;color:#fff;border-color:#111}
+    .btn-ghost{background:#fff;color:#111}
+    /* modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999}
+    .modal{background:#fff;max-width:560px;width:calc(100% - 2rem);border-radius:.75rem;padding:1.25rem;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .modal h2{margin:.25rem 0 .25rem 0}
+    .modal p{margin:.5rem 0 1rem 0}
+    .row{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
+    .row a,.row button{flex:1}
+    .donate-options{display:grid;grid-template-columns:1fr;gap:.5rem;margin:.5rem 0 1rem}
+    .donate-box{border:1px solid #eee;border-radius:.5rem;padding:.75rem}
+    .hidden{display:none}
   </style>
 </head>
 <body>
@@ -17,39 +30,86 @@
     <div>
       <h1>Редактор книги</h1>
       <div class="muted">Project ID: <span id="pid"></span></div>
-      <div class="muted">Проверка рендера в R2 (после “Сохранить”): <a id="testLink" href="#" target="_blank">/test/render_to_r2?merchantId=...</a></div>
-      <div class="muted">Быстрый тест без всего: <a href="/test/pdf" target="_blank">/test/pdf</a></div>
+      <p class="muted">Тест Cloudflare PDF: <a href="/test/pdf" target="_blank">/test/pdf</a></p>
     </div>
     <div class="actions">
-      <button id="saveDraft">Сохранить черновик</button>
-      <a id="peechoBtn" class="peecho-print-button"
+      <button id="saveDraft" class="btn btn-ghost">Сохранить черновик</button>
+
+      <!-- Кнопка: открыть ТОЛЬКО модалку доната -->
+      <a id="openDonate" class="btn" href="#">Поддержать проект</a>
+
+      <!-- Peecho Async (бумажная печать) — оставь как было -->
+      <a id="peechoBtn" class="peecho-print-button btn btn-primary"
          href="https://www.peecho.com/"
          title="Печать книги"
-         data-filetype="pdf"
-         data-width="210" data-height="297" data-pages="100"
+         data-filetype="pdf" data-width="210" data-height="297" data-pages="100"
          data-noprice="true" data-currency="EUR" data-locale="ru_RU"
          data-thumbnail="https://placehold.co/300x400?text=Book"
          data-reference="">
-         Оплатить печать
+         Оплатить печать (бумажная)
       </a>
     </div>
   </header>
 
+  <div class="muted" style="margin:.5rem 0 1rem">
+    Подсказка: при <b>копировании</b> (Ctrl/Cmd+C) или попытке <b>печати</b> (Ctrl/Cmd+P) мы покажем окно «Поддержать проект». Это добровольно.
+  </div>
+
   <div id="editor" style="margin-top:1rem;"></div>
 
+  <!-- SunEditor -->
   <script src="https://unpkg.com/suneditor/dist/suneditor.min.js"></script>
   <script src="https://unpkg.com/suneditor/src/lang/ru.js"></script>
 
-  <!-- ВСТАВЬ свой персональный JS кнопки Peecho -->
+  <!-- 👇 ВСТАВЬ СВОЙ персональный скрипт Peecho (merchant button script) -->
   <script>
     (function(){
       var s=document.createElement("script"); s.async=true;
-      s.src="https://d3aln0nj58oevo.cloudfront.net/button/script/YOUR-MERCHANT.js";
+      // ЗАМЕНИ на свой URL из Peecho (пример ниже — заглушка)
+      s.src="https://d3aln0nj58oevo.cloudfront.net/button/script/175871453943565676.js";
       document.head.appendChild(s);
     })();
   </script>
 
+  <!-- DONATION MODAL (только донат) -->
+  <div id="donateModal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Поддержите проект 🙏</h2>
+      <p>Если вам полезен этот редактор и печать книг — можете оставить донат. Если не сейчас — нажмите «Закрыть».</p>
+
+      <div class="donate-options">
+        <!-- Вариант 1: простые ссылки (работает без настройки) -->
+        <div class="donate-box">
+          <strong>Быстрые способы</strong>
+          <div class="row" style="margin-top:.5rem">
+            <a id="donateLink1" class="btn" target="_blank" rel="noopener">PayPal.Me</a>
+            <a id="donateLink2" class="btn" target="_blank" rel="noopener">Ko-fi</a>
+          </div>
+        </div>
+
+        <!-- Вариант 2: встроенная кнопка PayPal (по желанию) -->
+        <div id="paypalBox" class="donate-box hidden">
+          <strong>Оплата прямо здесь (PayPal)</strong>
+          <div id="paypal-button-container" style="margin-top:.5rem"></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="donateClose" class="btn btn-ghost" type="button">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // ===== НАСТРОЙКИ ДОНАТА =====
+    // 1) Простой вариант: подставь свои ссылки (необязательно обе).
+    const DONATE_PAYPAL_ME = "https://paypal.me/yourname";   // 👈 ЗАМЕНИ или оставь пустым ""
+    const DONATE_KOFI      = "https://ko-fi.com/yourname";    // 👈 ЗАМЕНИ или оставь пустым ""
+
+    // 2) (опц.) Встроенная кнопка PayPal Smart Buttons — заполни CLIENT ID
+    const PAYPAL_CLIENT_ID = ""; // 👈 если оставишь пустым — встроенная кнопка не покажется
+
+    // ===== РЕДАКТОР =====
     const editor = SUNEDITOR.create('editor', {
       lang: SUNEDITOR_LANG['ru'],
       height: '70vh',
@@ -59,20 +119,17 @@
       ]
     });
 
+    // Project ID для Peecho reference и (если нужно) связей
     const key = 'book_project_id';
     let projectId = localStorage.getItem(key);
     if (!projectId) {
       projectId = 'PROJECT_' + Math.random().toString(36).slice(2,10);
       localStorage.setItem(key, projectId);
     }
-
     document.getElementById('pid').textContent = projectId;
-    const testLink = document.getElementById('testLink');
-    testLink.href = '/test/render_to_r2?merchantId=' + encodeURIComponent(projectId);
+    document.getElementById('peechoBtn').setAttribute('data-reference', projectId);
 
-    const btn = document.getElementById('peechoBtn');
-    btn.setAttribute('data-reference', projectId);
-
+    // Сохранение черновика (на будущее, если нужно)
     document.getElementById('saveDraft').onclick = async () => {
       const html = editor.getContents();
       const res = await fetch('/api/draft', {
@@ -82,6 +139,59 @@
       });
       alert(res.ok ? 'Черновик сохранён' : 'Ошибка сохранения');
     };
+
+    // ===== МОДАЛКА ДОНАТА (только донат) =====
+    const modal = document.getElementById('donateModal');
+    const btnOpen = document.getElementById('openDonate');
+    const btnClose = document.getElementById('donateClose');
+    const link1 = document.getElementById('donateLink1');
+    const link2 = document.getElementById('donateLink2');
+    const paypalBox = document.getElementById('paypalBox');
+
+    // Подставим ссылки (скроем, если пустые)
+    if (DONATE_PAYPAL_ME) { link1.href = DONATE_PAYPAL_ME; } else { link1.parentElement.removeChild(link1); }
+    if (DONATE_KOFI)      { link2.href = DONATE_KOFI; } else { link2.parentElement.removeChild(link2); }
+
+    function openDonateModal() {
+      modal.style.display = 'flex';
+      // Подгружаем PayPal SDK и показываем встроенную кнопку только если указан CLIENT_ID
+      if (PAYPAL_CLIENT_ID && paypalBox.classList.contains('hidden')) {
+        paypalBox.classList.remove('hidden');
+        const s = document.createElement('script');
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&currency=EUR&intent=capture`;
+        s.onload = () => {
+          if (window.paypal && document.getElementById('paypal-button-container')) {
+            paypal.Buttons({
+              style: { layout: 'horizontal', label: 'donate' },
+              createOrder: (data, actions) => {
+                // Минимальный донат — 2 EUR (изменишь при желании)
+                return actions.order.create({
+                  purchase_units: [{ amount: { value: '2.00', currency_code: 'EUR' } }]
+                });
+              },
+              onApprove: (data, actions) => actions.order.capture().then(() => {
+                btnClose.textContent = 'Спасибо! Закрыть';
+              })
+            }).render('#paypal-button-container');
+          }
+        };
+        document.body.appendChild(s);
+      }
+    }
+    function closeDonateModal(){ modal.style.display = 'none'; }
+
+    btnOpen.addEventListener('click', e => { e.preventDefault(); openDonateModal(); });
+    btnClose.addEventListener('click', () => closeDonateModal());
+
+    // Показ модалки при копировании/попытке печати — только информируем (ничего не блокируем окончательно)
+    document.addEventListener('copy', () => { if (modal.style.display !== 'flex') openDonateModal(); });
+    document.addEventListener('keydown', (e) => {
+      const isPrint = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p';
+      if (isPrint) {
+        e.preventDefault(); // не печатаем «сырой» редактор
+        openDonateModal();  // предлагаем поддержать; дальше пользователь может закрыть и распечатать PDF, если реализуешь скачивание
+      }
+    });
   </script>
 </body>
 </html>
