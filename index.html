@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Автобиографическая книга — редактор</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/suneditor/dist/css/suneditor.min.css">
+  <style>
+    body{max-width:900px;margin:2rem auto;font-family:system-ui,Arial,sans-serif}
+    header{display:flex;gap:1rem;align-items:center;justify-content:space-between}
+    .actions{display:flex;gap:1rem;align-items:center}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Редактор книги</h1>
+    <div class="actions">
+      <button id="saveDraft">Сохранить черновик</button>
+      <!-- Async Peecho Button: БЕЗ data-src/publication -->
+      <a id="peechoBtn" class="peecho-print-button"
+         href="https://www.peecho.com/"
+         title="Печать книги"
+         data-filetype="pdf"
+         data-width="210" data-height="297" data-pages="100"
+         data-noprice="true" data-currency="EUR" data-locale="ru_RU"
+         data-thumbnail="https://placehold.co/300x400?text=Book"
+         data-reference="">
+         Оплатить печать
+      </a>
+    </div>
+  </header>
+
+  <div id="editor" style="margin-top:1rem;"></div>
+
+  <!-- SunEditor -->
+  <script src="https://unpkg.com/suneditor/dist/suneditor.min.js"></script>
+  <script src="https://unpkg.com/suneditor/src/lang/ru.js"></script>
+
+  <!-- ВСТАВЬ свой персональный JS скрипт кнопки Peecho из кабинета -->
+  <script>
+    (function(){
+      var s=document.createElement("script"); s.async=true;
+      s.src="https://d3aln0nj58oevo.cloudfront.net/button/script/YOUR-MERCHANT.js";
+      document.head.appendChild(s);
+    })();
+  </script>
+
+  <script>
+    // 1) Инициализация SunEditor (MIT)
+    const editor = SUNEDITOR.create('editor', {
+      lang: SUNEDITOR_LANG['ru'],
+      height: '70vh',
+      buttonList: [
+        ['undo','redo','formatBlock','bold','italic','underline','removeFormat'],
+        ['fontColor','hiliteColor','align','list','link','image']
+      ]
+    });
+
+    // 2) projectId для связи с заказом (merchantReference)
+    const key = 'book_project_id';
+    let projectId = localStorage.getItem(key);
+    if (!projectId) {
+      projectId = 'PROJECT_' + Math.random().toString(36).slice(2,10);
+      localStorage.setItem(key, projectId);
+    }
+    // прокинем в кнопку
+    const btn = document.getElementById('peechoBtn');
+    btn.setAttribute('data-reference', projectId);
+
+    // 3) Сохранение черновика в KV через Pages Function
+    document.getElementById('saveDraft').onclick = async () => {
+      const html = editor.getContents(); // готовый HTML
+      const res = await fetch('/api/draft', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ merchantReference: projectId, html })
+      });
+      alert(res.ok ? 'Черновик сохранён' : 'Ошибка сохранения');
+    };
+  </script>
+</body>
+</html>
