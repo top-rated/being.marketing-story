@@ -2,66 +2,124 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>Автобиографическая книга — редактор</title>
+  <title>Книга — редактор с предпросмотром</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="https://unpkg.com/suneditor/dist/css/suneditor.min.css">
+  <!-- Quill -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
   <style>
-    body{max-width:900px;margin:2rem auto;font-family:system-ui,Arial,sans-serif}
+    :root{--max:980px}
+    body{max-width:var(--max);margin:2rem auto;font-family:system-ui,Arial,sans-serif;padding:0 1rem}
     header{display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    .actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
     .muted{opacity:.75;font-size:.9rem}
-    .btn{display:inline-block;padding:.6rem 1rem;border:1px solid #ccc;border-radius:.5rem;text-decoration:none;cursor:pointer}
+    .row{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+    .btn{display:inline-block;padding:.6rem 1rem;border:1px solid #ccc;border-radius:.5rem;text-decoration:none;cursor:pointer;background:#fff}
     .btn-primary{background:#111;color:#fff;border-color:#111}
-    .btn-ghost{background:#fff;color:#111}
-    .hidden{display:none}
+    .section{margin:1rem 0;padding:1rem;border:1px solid #eee;border-radius:.5rem}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:820px){.grid{grid-template-columns:1fr}}
+    #editor{background:#fff}
+    .q-toolbar .ql-formats{flex-wrap:wrap}
+    .q-wrap{border:1px solid #ddd;border-radius:.5rem;overflow:hidden}
+    .q-toolbar{border-bottom:1px solid #ddd}
+    .q-editor{height:60vh}
+    @media(max-width:480px){.q-editor{height:55vh}}
     /* modal */
     .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999}
-    .modal{background:#fff;max-width:560px;width:calc(100% - 2rem);border-radius:.75rem;padding:1.25rem;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .modal{background:#fff;max-width:640px;width:calc(100% - 2rem);border-radius:.75rem;padding:1.25rem;box-shadow:0 10px 30px rgba(0,0,0,.2)}
     .modal h2{margin:.25rem 0 .25rem 0}
     .modal p{margin:.5rem 0 1rem 0}
-    .row{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
-    .row a,.row button{flex:1}
-    .donate-options{display:grid;grid-template-columns:1fr;gap:.5rem;margin:.5rem 0 1rem}
-    .donate-box{border:1px solid #eee;border-radius:.5rem;padding:.75rem}
+    .paypal-box{border:1px solid #eee;border-radius:.5rem;padding:.75rem}
+    /* книга */
+    .cover, .backcover, .section-illu {text-align:center}
+    .cover-title{font-size:42px;margin-top:120px}
+    .cover-sub{font-size:20px;opacity:.8}
+    .cover-author{margin-top:12px}
+    .illu{max-width:100%;height:auto}
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>Редактор книги</h1>
-      <div class="muted">Project ID: <span id="pid"></span></div>
-      <p class="muted">Тест Cloudflare PDF: <a href="/test/pdf" target="_blank">/test/pdf</a></p>
+      <div class="muted">Project ID: <span id="pid"></span> · Тест PDF: <a href="/test/pdf" target="_blank">/test/pdf</a></div>
     </div>
-    <div class="actions">
-      <button id="saveDraft" class="btn btn-ghost">Сохранить черновик</button>
-
-      <!-- открыть ТОЛЬКО модалку доната -->
-      <a id="openDonate" class="btn" href="#">Поддержать проект</a>
-
-      <!-- Peecho Async (бумажная печать) — БЕЗ data-src -->
+    <div class="row">
+      <button id="saveBook" class="btn">Сохранить книгу</button>
+      <button id="previewBook" class="btn">Предпросмотр (страницы)</button>
+      <!-- Peecho Async: без data-src -->
       <a id="peechoBtn" class="peecho-print-button btn btn-primary"
          href="https://www.peecho.com/"
          title="Печать книги"
          data-filetype="pdf" data-width="210" data-height="297" data-pages="100"
          data-noprice="true" data-currency="EUR" data-locale="ru_RU"
          data-thumbnail="https://placehold.co/300x400?text=Book"
-         data-reference="">
-         Оплатить печать (бумажная)
-      </a>
+         data-reference="">Оплатить печать</a>
+      <button id="openDonate" class="btn">Поддержать проект</button>
     </div>
   </header>
 
-  <div class="muted" style="margin:.5rem 0 1rem">
-    Подсказка: при <b>копировании</b> (Ctrl/Cmd+C) или попытке <b>печати</b> (Ctrl/Cmd+P) покажем окно «Поддержать проект». Это добровольно.
+  <!-- КОНСТРУКТОР КНИГИ -->
+  <div class="section">
+    <h3>Обложка</h3>
+    <div class="grid">
+      <div>
+        <label>Заголовок<br><input id="coverTitle" class="btn" style="width:100%" placeholder="Название книги"></label><br><br>
+        <label>Подзаголовок<br><input id="coverSub" class="btn" style="width:100%" placeholder="Подзаголовок (опционально)"></label><br><br>
+        <label>Автор<br><input id="coverAuthor" class="btn" style="width:100%" placeholder="Имя автора"></label>
+      </div>
+      <div>
+        <label>Картинка обложки (A4 портрет, опц.)<br><input id="coverImg" type="file" accept="image/*" class="btn" /></label>
+        <div class="muted">Если не загрузить картинку — будет текстовая обложка.</div>
+      </div>
+    </div>
   </div>
 
-  <div id="editor" style="margin-top:1rem;"></div>
+  <div class="section">
+    <h3>Иллюстрация раздела (опц.)</h3>
+    <input id="sectionImg" type="file" accept="image/*" class="btn" />
+  </div>
 
-  <!-- SunEditor -->
-  <script src="https://unpkg.com/suneditor/dist/suneditor.min.js"></script>
-  <script src="https://unpkg.com/suneditor/src/lang/ru.js"></script>
+  <div class="section">
+    <h3>Текст книги (вставляй фото через панель)</h3>
+    <div class="q-wrap">
+      <div id="toolbar" class="q-toolbar">
+        <span class="ql-formats">
+          <select class="ql-header">
+            <option value="1">H1</option>
+            <option value="2">H2</option>
+            <option selected></option>
+          </select>
+          <button class="ql-bold"></button>
+          <button class="ql-italic"></button>
+          <button class="ql-underline"></button>
+          <button class="ql-blockquote"></button>
+          <button class="ql-list" value="ordered"></button>
+          <button class="ql-list" value="bullet"></button>
+          <button class="ql-align" value=""></button>
+          <button class="ql-align" value="center"></button>
+          <button class="ql-align" value="right"></button>
+          <button class="ql-image"></button>
+          <button class="ql-clean"></button>
+        </span>
+      </div>
+      <div id="editor" class="q-editor"></div>
+    </div>
+    <div class="muted">Подсказка: «ответы от руки» можно добавить как изображения — они корректно попадут в PDF.</div>
+  </div>
 
-  <!-- Peecho merchant script (можешь оставить этот или заменить на свой из кабинета) -->
+  <div class="section">
+    <h3>Задняя обложка (опц.)</h3>
+    <div class="grid">
+      <div>
+        <label>Текст на задней обложке<br><textarea id="backText" class="btn" style="width:100%;height:120px" placeholder="Короткая аннотация"></textarea></label>
+      </div>
+      <div>
+        <label>Картинка задней обложки (опц.)<br><input id="backImg" type="file" accept="image/*" class="btn" /></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Peecho merchant script (оставь или замени своим) -->
   <script>
     (function(){
       var s=document.createElement("script"); s.async=true;
@@ -70,136 +128,174 @@
     })();
   </script>
 
-  <!-- DONATION MODAL -->
+  <!-- DONATION MODAL (PayPal-only) -->
   <div id="donateModal" class="modal-backdrop" role="dialog" aria-modal="true">
     <div class="modal">
       <h2>Поддержите проект 🙏</h2>
-      <p>Если инструмент полезен — можете оставить донат. Если не сейчас — нажмите «Закрыть».</p>
-
-      <div class="donate-options">
-        <!-- Вариант 1: быстрые ссылки -->
-        <div class="donate-box">
-          <strong>Быстрые способы</strong>
-          <div class="row" style="margin-top:.5rem">
-            <a id="donateLink1" class="btn hidden" target="_blank" rel="noopener">PayPal.Me</a>
-            <a id="donateLink2" class="btn hidden" target="_blank" rel="noopener">Ko-fi</a>
-          </div>
-        </div>
-
-        <!-- Вариант 2: встроенные PayPal Smart Buttons -->
-        <div id="paypalBox" class="donate-box hidden">
-          <strong>Оплата прямо здесь (PayPal / Card)</strong>
-          <div id="paypal-button-container" style="margin-top:.5rem"></div>
-        </div>
+      <p>Можете оставить добровольный донат. Спасибо!</p>
+      <div class="paypal-box">
+        <div id="paypal-button-container"></div>
       </div>
-
-      <div class="row">
-        <button id="donateClose" class="btn btn-ghost" type="button">Закрыть</button>
+      <div class="row" style="margin-top:.75rem">
+        <button id="donateClose" class="btn">Закрыть</button>
       </div>
     </div>
   </div>
 
-  <script>
-    // ===== НАСТРОЙКИ (заполни только это) =====
-    const DONATE_PAYPAL_ME = "";             // напр. "https://paypal.me/yourname" или оставь пустым
-    const DONATE_KOFI      = "";             // напр. "https://ko-fi.com/yourname" или оставь пустым
-    const PAYPAL_CLIENT_ID = "AQ7eziOmsfbsBKBLunUh_nPcoFn5Y2NsJGsR4xY50g-NvstA4_B7P46IJTItbb9TvFkxxOagFgFG-HXB";             // LIVE client-id PayPal; если пусто — встроенные кнопки скрыты
-    const DONATE_AMOUNT_EUR = "2.00";        // сумма по умолчанию (можешь изменить)
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
 
-    // ===== РЕДАКТОР =====
-    const editor = SUNEDITOR.create('editor', {
-      lang: SUNEDITOR_LANG['ru'],
-      height: '70vh',
-      buttonList: [
-        ['undo','redo','formatBlock','bold','italic','underline','removeFormat'],
-        ['fontColor','hiliteColor','align','list','link','image']
-      ]
+  <script>
+    /************ НАСТРОЙКИ ************/
+    const PAYPAL_CLIENT_ID = "";   // 👈 ВСТАВЬ живой client-id
+    const DONATE_AMOUNT_EUR = "2.00";
+
+    /************ ИНИТ ************/
+    // Quill
+    const quill = new Quill('#editor', {
+      theme: 'snow',
+      modules: { toolbar: '#toolbar' }
     });
 
-    // Project ID → и в Peecho reference
+    // Project ID и Peecho reference
     const key = 'book_project_id';
     let projectId = localStorage.getItem(key);
-    if (!projectId) {
-      projectId = 'PROJECT_' + Math.random().toString(36).slice(2,10);
-      localStorage.setItem(key, projectId);
-    }
+    if (!projectId) { projectId = 'PROJECT_' + Math.random().toString(36).slice(2,10); localStorage.setItem(key, projectId); }
     document.getElementById('pid').textContent = projectId;
     document.getElementById('peechoBtn').setAttribute('data-reference', projectId);
 
-    // Сохранение черновика в KV
-    document.getElementById('saveDraft').onclick = async () => {
-      const html = editor.getContents();
+    // helpers: file -> dataURL
+    function toDataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
+
+    let coverDataURL="", sectionDataURL="", backDataURL="";
+    document.getElementById('coverImg').addEventListener('change', async e=>{
+      const f=e.target.files[0]; coverDataURL = f ? await toDataURL(f) : "";
+    });
+    document.getElementById('sectionImg').addEventListener('change', async e=>{
+      const f=e.target.files[0]; sectionDataURL = f ? await toDataURL(f) : "";
+    });
+    document.getElementById('backImg').addEventListener('change', async e=>{
+      const f=e.target.files[0]; backDataURL = f ? await toDataURL(f) : "";
+    });
+
+    // Сборка ПОЛНОГО HTML книги (обложка → раздел → контент → задняя)
+    function buildBookHTML(){
+      const title = (document.getElementById('coverTitle').value||"").trim();
+      const sub   = (document.getElementById('coverSub').value||"").trim();
+      const auth  = (document.getElementById('coverAuthor').value||"").trim();
+      const backT = (document.getElementById('backText').value||"").trim();
+      const contentHTML = quill.root.innerHTML;
+
+      return `
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<style>
+  @page { size: 210mm 297mm; margin: 15mm; }
+  body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; }
+  h1,h2,h3{ page-break-after: avoid; }
+  img{ max-width:100%; height:auto; page-break-inside: avoid; }
+  .page-break{ page-break-before: always; }
+  .cover, .backcover, .section-illu { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height: 257mm; text-align:center; }
+  .cover .bg{ position:absolute; inset:0; }
+  .cover .content{ position:relative; z-index:2; }
+  .cover-title{ font-size:42px; margin:0 0 12px 0; }
+  .cover-sub{ font-size:20px; opacity:.8; margin:0 0 6px 0; }
+  .cover-author{ margin:0; font-size:16px; }
+  .illu{ max-width:100%; }
+  .content{ }
+</style>
+</head>
+<body>
+  <section class="cover" style="position:relative; overflow:hidden;">
+    ${coverDataURL ? `<img class="bg" src="${coverDataURL}" alt="cover">` : ``}
+    <div class="content">
+      ${title?`<h1 class="cover-title">${title}</h1>`:''}
+      ${sub?`<div class="cover-sub">${sub}</div>`:''}
+      ${auth?`<p class="cover-author">${auth}</p>`:''}
+    </div>
+  </section>
+
+  ${sectionDataURL ? `
+  <section class="section-illu page-break">
+    <img class="illu" src="${sectionDataURL}" alt="section">
+  </section>`:''}
+
+  <section class="content ${sectionDataURL ? '' : 'page-break'}">
+    ${contentHTML}
+  </section>
+
+  <section class="backcover page-break">
+    ${backDataURL ? `<img class="illu" src="${backDataURL}" alt="back">` : ``}
+    ${backT ? `<div style="max-width:70ch;margin-top:1rem;white-space:pre-wrap">${backT}</div>` : ``}
+  </section>
+</body></html>`;
+    }
+
+    // Сохранить книгу (в KV пишем уже СФОРМИРОВАННЫЙ HTML)
+    document.getElementById('saveBook').onclick = async () => {
+      const bookHTML = buildBookHTML();
       const res = await fetch('/api/draft', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ merchantReference: projectId, html })
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ merchantReference: projectId, html: bookHTML })
       });
-      alert(res.ok ? 'Черновик сохранён' : 'Ошибка сохранения');
+      alert(res.ok ? 'Книга сохранена' : 'Ошибка сохранения');
     };
 
-    // ===== МОДАЛКА ДОНАТА =====
+    // Предпросмотр (Paged.js) — откроем во всплывающем окне
+    document.getElementById('previewBook').onclick = async () => {
+      const bookHTML = buildBookHTML();
+      const win = window.open('', '_blank');
+      const withPaged = `
+${bookHTML.replace('</body>',
+  `<script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"><\/script></body>`)}
+`;
+      win.document.write(withPaged);
+      win.document.close();
+    };
+
+    // DONATION MODAL (PayPal only)
     const modal = document.getElementById('donateModal');
     const btnOpen = document.getElementById('openDonate');
     const btnClose = document.getElementById('donateClose');
-    const link1 = document.getElementById('donateLink1');
-    const link2 = document.getElementById('donateLink2');
-    const paypalBox = document.getElementById('paypalBox');
-    const paypalContainer = document.getElementById('paypal-button-container');
 
-    // Показать ссылки, если заданы
-    if (DONATE_PAYPAL_ME) { link1.href = DONATE_PAYPAL_ME; link1.classList.remove('hidden'); }
-    if (DONATE_KOFI)      { link2.href = DONATE_KOFI;     link2.classList.remove('hidden'); }
-
-    let paypalMounted = false;
-    function mountPayPalButtons() {
-      if (paypalMounted || !PAYPAL_CLIENT_ID) return;
-      paypalMounted = true;
-      paypalBox.classList.remove('hidden');
-
-      const sdk = document.createElement('script');
-      sdk.src = "https://www.paypal.com/sdk/js"
-        + "?client-id=" + encodeURIComponent(PAYPAL_CLIENT_ID)
-        + "&currency=EUR"
-        + "&intent=capture"
-        + "&enable-funding=card"
-        + "&components=buttons"
-        + "&commit=true";
-      sdk.onload = () => {
-        paypalContainer.innerHTML = "";
-        const renderBtn = (fundingSource, style) => {
-          const btn = paypal.Buttons({
-            fundingSource,
-            style: Object.assign({ layout:'horizontal', label:'donate', tagline:false }, style),
-            createOrder: (data, actions) => actions.order.create({
-              purchase_units: [{ amount: { value: DONATE_AMOUNT_EUR, currency_code: 'EUR' } }]
-            }),
-            onApprove: (data, actions) => actions.order.capture().then(() => {
-              btnClose.textContent = 'Спасибо! Закрыть';
-            })
-          });
-          if (btn.isEligible()) btn.render('#paypal-button-container');
+    function openDonateModal(){
+      modal.style.display='flex';
+      if (PAYPAL_CLIENT_ID && !window.__ppMounted){
+        window.__ppMounted = true;
+        const sdk = document.createElement('script');
+        sdk.src = "https://www.paypal.com/sdk/js"
+          + "?client-id=" + encodeURIComponent(PAYPAL_CLIENT_ID)
+          + "&currency=EUR&intent=capture&enable-funding=card&components=buttons&commit=true";
+        sdk.onload = () => {
+          const renderBtn = (fundingSource, style) => {
+            const btn = paypal.Buttons({
+              fundingSource,
+              style: Object.assign({ layout:'horizontal', label:'donate', tagline:false }, style),
+              createOrder: (data, actions) => actions.order.create({
+                application_context:{ shipping_preference:'NO_SHIPPING', user_action:'PAY_NOW' },
+                purchase_units:[{ amount:{ value: DONATE_AMOUNT_EUR, currency_code:'EUR' } }]
+              }),
+              onApprove: (data, actions) => actions.order.capture().then(()=>{ btnClose.textContent='Спасибо! Закрыть'; })
+            });
+            if (btn.isEligible()) btn.render('#paypal-button-container');
+          };
+          renderBtn(paypal.FUNDING.CARD, { color:'black' });
+          renderBtn(paypal.FUNDING.PAYPAL, { color:'gold' });
         };
-        // сначала карта (если доступна), затем обычный PayPal
-        renderBtn(paypal.FUNDING.CARD,   { color:'black' });
-        renderBtn(paypal.FUNDING.PAYPAL, { color:'gold'  });
-      };
-      document.body.appendChild(sdk);
+        document.body.appendChild(sdk);
+      }
     }
+    function closeDonateModal(){ modal.style.display='none'; }
+    btnOpen.onclick = () => openDonateModal();
+    btnClose.onclick = () => closeDonateModal();
 
-    function openDonateModal() {
-      modal.style.display = 'flex';
-      if (PAYPAL_CLIENT_ID) mountPayPalButtons();
-    }
-    function closeDonateModal(){ modal.style.display = 'none'; }
-
-    btnOpen.addEventListener('click', e => { e.preventDefault(); openDonateModal(); });
-    btnClose.addEventListener('click', () => closeDonateModal());
-
-    // Показывать модалку при копировании/попытке печати
-    document.addEventListener('copy', () => { if (modal.style.display !== 'flex') openDonateModal(); });
-    document.addEventListener('keydown', (e) => {
-      const isPrint = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p';
-      if (isPrint) { e.preventDefault(); openDonateModal(); }
+    // Мягкое предложение доната при копировании/печати
+    document.addEventListener('copy', ()=>{ if (modal.style.display!=='flex') openDonateModal(); });
+    document.addEventListener('keydown', (e)=>{
+      const isPrint=(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='p';
+      if(isPrint){ e.preventDefault(); openDonateModal(); }
     });
   </script>
 </body>
