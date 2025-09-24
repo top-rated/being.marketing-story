@@ -1,0 +1,12 @@
+{
+  "name": "book-print-mvp",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  },
+  "scripts": {
+    "dev": "wrangler pages dev ./public --functions=functions",
+    "deploy": "wrangler pages deploy ./public --functions=functions"
+  }
+}
